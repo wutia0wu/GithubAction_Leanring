@@ -1,5 +1,4 @@
 const express = require('express');
-var unusedVariable = 'this will break lint';   // ← 故意的错误：var + unused
 
 const app = express();
 app.use(express.json());
