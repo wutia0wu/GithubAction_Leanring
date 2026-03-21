@@ -1,0 +1,75 @@
+# ============================================================
+# 阶段二：质量门禁 — Matrix、依赖链、条件判断
+# ============================================================
+# 学习重点：
+#   - matrix: 并行在多个 Node.js 版本上运行测试
+#   - needs: 定义 Job 之间的依赖关系（有序执行）
+#   - if: 条件表达式，控制 Job/Step 是否运行
+#   - ${{ }} 表达式语法：访问上下文变量
+#   - fail-fast: false — 某个 matrix 组合失败时不立即取消其他组合
+#
+# ── 实验建议 ───────────────────────────────────────────────
+# 故意引入 lint 错误：在 src/app.js 中添加一行 var x = 1
+# push 后观察：lint 失败 → quality-gate 被阻断（永远不运行）
+# ============================================================
+
+name: "Stage 2 — Quality Gate"
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Job 1: 代码风格检查 ───────────────────────────────────
+  lint:
+    name: "Lint (ESLint)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - name: Run ESLint
+        run: npm run lint
+
+  # ── Job 2: 多版本矩阵测试 ─────────────────────────────────
+  test:
+    name: "Test (Node ${{ matrix.node-version }})"
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: ["18", "20", "22"]   # 并行运行 3 个 Job
+      fail-fast: false   # 一个版本失败，不取消其他版本
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm ci
+      - run: npm test
+
+  # ── Job 3: 质量门禁（仅 main 分支） ─────────────────────
+  quality-gate:
+    name: "Quality Gate"
+    runs-on: ubuntu-latest
+    needs: [lint, test]   # 必须等 lint 和 test 全部成功才运行
+
+    # 只在推送到 main 分支时执行此 Job
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: All checks passed!
+        run: |
+          echo "✅ Lint passed"
+          echo "✅ Tests passed on Node 18, 20, 22"
+          echo "🚀 Code quality approved for main branch"
+          echo ""
+          echo "Triggered by: ${{ github.actor }}"
+          echo "Commit SHA:   ${{ github.sha }}"
+          echo "Branch:       ${{ github.ref_name }}"

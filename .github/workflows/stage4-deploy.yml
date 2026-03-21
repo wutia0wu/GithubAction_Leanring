@@ -1,0 +1,110 @@
+# ============================================================
+# 阶段四：环境与部署 — Secrets、Environments、保护规则
+# ============================================================
+# 学习重点：
+#   - secrets: 加密存储敏感信息（token、API key），${{ secrets.NAME }}
+#   - environment: 绑定到 GitHub 环境（Settings → Environments）
+#   - 保护规则（Protection Rules）：
+#     * Required reviewers（四眼原则）
+#     * Wait timer（等待时间）
+#     * Branch policies（只允许指定分支部署）
+#
+# ── 使用前的准备工作 ──────────────────────────────────────
+# 1. GitHub → Settings → Secrets → Actions → New repository secret
+#    添加: DEPLOY_TOKEN = your-token-here（随便填一个演示值）
+#
+# 2. GitHub → Settings → Environments
+#    创建: staging（无保护规则）
+#    创建: production（添加 Required reviewers: 你自己）
+#
+# ── 触发方式 ──────────────────────────────────────────────
+# 此 workflow 仅在 push 到 main 分支时触发
+# ============================================================
+
+name: "Stage 4 — Environments & Deploy"
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  # ── Job 1: 运行测试（部署前提条件）────────────────────────
+  test:
+    name: "Run Tests"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - run: npm test
+
+  # ── Job 2: 部署到 Staging 环境 ────────────────────────────
+  deploy-staging:
+    name: "Deploy to Staging"
+    runs-on: ubuntu-latest
+    needs: test                  # 测试通过才部署
+    environment: staging         # 绑定到名为 "staging" 的 GitHub 环境
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to staging
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}   # 从 Secrets 读取
+        run: |
+          echo "🚀 Deploying to STAGING environment..."
+          echo "Commit: ${{ github.sha }}"
+          echo "Actor:  ${{ github.actor }}"
+          echo ""
+          # 模拟部署（实际项目中这里会是 SSH、kubectl、fly deploy 等命令）
+          if [ -z "$DEPLOY_TOKEN" ]; then
+            echo "⚠️  DEPLOY_TOKEN not set — add it in Settings → Secrets"
+          else
+            echo "✅ DEPLOY_TOKEN present (length: ${#DEPLOY_TOKEN} chars)"
+          fi
+          echo ""
+          echo "✅ Staging deployment complete!"
+          echo "   URL: https://staging.example.com"
+
+      - name: Notify staging deployment
+        run: |
+          echo "📣 Notification: Staging deployment finished"
+          echo "   Triggered by: ${{ github.actor }}"
+          echo "   Branch:       ${{ github.ref_name }}"
+
+  # ── Job 3: 部署到 Production 环境 ─────────────────────────
+  deploy-production:
+    name: "Deploy to Production"
+    runs-on: ubuntu-latest
+    needs: deploy-staging        # Staging 成功后才允许部署 Production
+    environment: production      # 绑定到 "production" 环境（配置了 Required reviewers）
+    # ↑ 如果你在 GitHub 的 production 环境设置了 Required reviewers，
+    #   这个 Job 会暂停等待审批，审批通过后才继续执行
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to production
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+        run: |
+          echo "🚀 Deploying to PRODUCTION environment..."
+          echo "Commit: ${{ github.sha }}"
+          echo ""
+          # 实际项目：更严格的部署流程
+          echo "✅ Production deployment complete!"
+          echo "   URL: https://www.example.com"
+
+      - name: Create deployment summary
+        run: |
+          echo "## 🎉 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | Production |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deployed by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Time | $(date -u) |" >> $GITHUB_STEP_SUMMARY

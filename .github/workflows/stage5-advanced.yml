@@ -1,0 +1,113 @@
+# ============================================================
+# 阶段五：高级特性 — Reusable Workflow、手动触发
+# ============================================================
+# 学习重点：
+#   - workflow_dispatch: 在 GitHub Actions 页面手动触发，带表单输入
+#   - inputs: 手动触发时的用户表单（text、boolean、choice 类型）
+#   - uses: ./.github/workflows/reusable-test.yml — 调用可复用 Workflow
+#   - with / secrets: inherit — 传参给复用的 Workflow
+#
+# ── 如何手动触发 ──────────────────────────────────────────
+# GitHub → Actions → "Stage 5 — Advanced Features"
+# → "Run workflow" 按钮 → 填写表单 → Run
+# ============================================================
+
+name: "Stage 5 — Advanced Features"
+
+on:
+  # ── 手动触发（带表单）──────────────────────────────────
+  workflow_dispatch:
+    inputs:
+      node-version:
+        description: "Node.js version to test with"
+        required: true
+        default: "20"
+        type: choice
+        options:
+          - "18"
+          - "20"
+          - "22"
+
+      run-coverage:
+        description: "Generate coverage report?"
+        required: false
+        default: false
+        type: boolean
+
+      deploy-target:
+        description: "Deploy target after tests pass"
+        required: false
+        default: "none"
+        type: choice
+        options:
+          - "none"
+          - "staging"
+
+      release-note:
+        description: "Release note (optional)"
+        required: false
+        type: string
+
+  # ── 也支持自动触发（可选）─────────────────────────────
+  push:
+    branches: [main]
+
+jobs:
+  # ── Job 1: 调用可复用 Workflow ────────────────────────────
+  call-reusable-test:
+    name: "Call Reusable Test Workflow"
+    uses: ./.github/workflows/reusable-test.yml
+    with:
+      node-version: ${{ inputs.node-version || '20' }}
+      run-coverage: ${{ inputs.run-coverage || false }}
+    secrets: inherit
+
+  # ── Job 2: 展示结果 + 手动触发参数 ──────────────────────
+  summary:
+    name: "Workflow Summary"
+    runs-on: ubuntu-latest
+    needs: call-reusable-test
+
+    steps:
+      - name: Display inputs and results
+        run: |
+          echo "============================================"
+          echo "  Stage 5 — Advanced Features Summary"
+          echo "============================================"
+          echo ""
+          echo "📥 Inputs received:"
+          echo "   node-version:  ${{ inputs.node-version || '20 (default)' }}"
+          echo "   run-coverage:  ${{ inputs.run-coverage || 'false (default)' }}"
+          echo "   deploy-target: ${{ inputs.deploy-target || 'none (default)' }}"
+          echo "   release-note:  ${{ inputs.release-note || '(none)' }}"
+          echo ""
+          echo "📤 Reusable workflow output:"
+          echo "   test-result: ${{ needs.call-reusable-test.outputs.test-result }}"
+          echo ""
+          echo "🎯 Triggered by: ${{ github.event_name }}"
+          echo "   Actor:  ${{ github.actor }}"
+          echo "   Branch: ${{ github.ref_name }}"
+
+      - name: Simulate staging deploy (if selected)
+        if: inputs.deploy-target == 'staging'
+        run: |
+          echo ""
+          echo "🚀 Deploying to staging (as requested)..."
+          echo "   This is where your deploy command would go"
+          echo "✅ Staging deploy simulated!"
+
+      - name: Write job summary to GitHub UI
+        run: |
+          echo "## Stage 5 Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Input | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Node version | ${{ inputs.node-version || '20' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Coverage | ${{ inputs.run-coverage || 'false' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deploy target | ${{ inputs.deploy-target || 'none' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Test result:** ${{ needs.call-reusable-test.outputs.test-result }} ✅" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ inputs.release-note }}" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Release note:** ${{ inputs.release-note }}" >> $GITHUB_STEP_SUMMARY
+          fi
