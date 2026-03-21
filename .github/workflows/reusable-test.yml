@@ -32,10 +32,6 @@ on:
         description: "Test result: passed or failed"
         value: ${{ jobs.run-tests.outputs.result }}
 
-    # ── Secrets（继承调用方的，无需重复声明）──────────────
-    secrets:
-      inherit   # 等价于把调用方所有 secrets 传进来
-
 jobs:
   run-tests:
     name: "Test (Node ${{ inputs.node-version }})"
