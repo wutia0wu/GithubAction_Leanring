@@ -9,7 +9,8 @@
     "ecmaVersion": 2021
   },
   "rules": {
-    "no-unused-vars": "warn",
+    "no-unused-vars": "error",
+    "no-var": "error",
     "no-console": "off",
     "semi": ["error", "always"],
     "quotes": ["error", "single"]
