@@ -34,7 +34,7 @@ jobs:
     name: "Lint"
     runs-on: ubuntu-latest
     steps:
-      - uses: ./.github/actions/setup-node-project   # ← Composite Action 封装了 checkout + setup + npm ci
+      - uses: ./.github/actions/setup-node-project # ← Composite Action 封装了 checkout + setup + npm ci
       - run: npm run lint
 
   # ── Job 2: 测试（PR 和 push 都跑）────────────────────────
@@ -42,7 +42,7 @@ jobs:
     name: "Test"
     runs-on: ubuntu-latest
     steps:
-      - uses: ./.github/actions/setup-node-project   # ← 同一个 Action 直接复用
+      - uses: ./.github/actions/setup-node-project # ← 同一个 Action 直接复用
       - run: npm run test:coverage
       - uses: actions/upload-artifact@v4
         with:

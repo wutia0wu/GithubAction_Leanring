@@ -1,0 +1,63 @@
+# ============================================================
+# Schedule — 定时触发（cron）
+# ============================================================
+# 学习重点：
+#   - on: schedule 使用标准 5 字段 cron 表达式
+#   - 时区固定为 UTC，注意换算
+#   - 常用场景：定期健康检查、安全扫描、数据清理、报告生成
+#
+# Cron 字段：分 时 日 月 周
+#   "0 2 * * *"     每天 UTC 02:00（北京时间 10:00）
+#   "0 9 * * 1-5"   工作日 UTC 09:00
+#   "*/15 * * * *"  每 15 分钟（测试用，生产慎用）
+#
+# ⚠️  注意：GitHub 在高峰期 schedule 可能延迟几分钟，不保证精确
+# ⚠️  仓库 60 天无活动会自动暂停 schedule workflow
+# ============================================================
+
+name: "Stage 6 — Scheduled Health Check"
+
+on:
+  schedule:
+    # 每天 UTC 02:00 跑一次（北京时间 10:00）
+    - cron: "0 2 * * *"
+
+  # 保留手动触发，方便立即测试而不用等定时
+  workflow_dispatch:
+
+jobs:
+  health-check:
+    name: "Daily Health Check"
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      # 定时任务的核心：跑完整测试套件
+      - name: Run full test suite
+        run: npm test
+
+      # 检查依赖安全漏洞（定时任务的经典用途）
+      - name: Check for vulnerabilities
+        run: npm audit --audit-level=high
+        continue-on-error: true   # 有漏洞时不阻断，只记录
+
+      # 把结果写入 Job Summary
+      - name: Write summary
+        run: |
+          echo "## 🕐 Daily Health Check — $(date -u '+%Y-%m-%d')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Tests | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| Run at | $(date -u '+%H:%M UTC') |" >> $GITHUB_STEP_SUMMARY

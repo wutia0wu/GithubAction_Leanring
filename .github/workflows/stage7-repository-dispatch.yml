@@ -1,0 +1,101 @@
+# ============================================================
+# repository_dispatch — 通过 API 从外部触发 workflow
+# ============================================================
+# 学习重点：
+#   - on: repository_dispatch 只能通过 GitHub API 触发，不能通过 push
+#   - types: 过滤事件类型，一个 workflow 可响应多种类型
+#   - github.event.client_payload: 调用方传入的自定义数据
+#
+# ── 触发方式（curl 命令）─────────────────────────────────
+#
+#   curl -X POST \
+#     -H "Authorization: Bearer <YOUR_PAT>" \
+#     -H "Accept: application/vnd.github.v3+json" \
+#     https://api.github.com/repos/<owner>/<repo>/dispatches \
+#     -d '{
+#       "event_type": "deploy-request",
+#       "client_payload": {
+#         "environment": "staging",
+#         "version": "v1.2.3",
+#         "triggered_by": "release-pipeline"
+#       }
+#     }'
+#
+# ── 典型使用场景 ──────────────────────────────────────────
+# 1. 上游仓库（基础镜像）构建完成后，触发下游仓库（应用）重新部署
+# 2. 外部 CI 系统（Jenkins / CircleCI）完成后触发 GitHub Actions
+# 3. 业务事件（订单完成、数据就绪）触发数据处理 workflow
+# ============================================================
+
+name: "Stage 7 — Repository Dispatch"
+
+on:
+  repository_dispatch:
+    types:
+      - deploy-request    # 部署请求
+      - run-tests         # 外部触发测试
+
+  # 手动触发用于演示
+  workflow_dispatch:
+    inputs:
+      simulate-event-type:
+        description: "Simulate event type"
+        type: choice
+        options: ["deploy-request", "run-tests"]
+        default: "deploy-request"
+
+jobs:
+  handle-dispatch:
+    name: "Handle ${{ github.event.action || inputs.simulate-event-type }}"
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 读取调用方通过 client_payload 传入的数据
+      - name: Print received payload
+        run: |
+          echo "================================================"
+          echo "  Event received!"
+          echo "================================================"
+          echo ""
+          echo "Event type:    ${{ github.event.action || inputs.simulate-event-type }}"
+          echo ""
+          echo "── client_payload (from API caller) ──"
+          echo "environment:   ${{ github.event.client_payload.environment || 'N/A (workflow_dispatch)' }}"
+          echo "version:       ${{ github.event.client_payload.version || 'N/A' }}"
+          echo "triggered_by:  ${{ github.event.client_payload.triggered_by || 'manual' }}"
+
+      # 根据 event type 执行不同逻辑
+      - name: Handle deploy-request
+        if: github.event.action == 'deploy-request' || inputs.simulate-event-type == 'deploy-request'
+        run: |
+          ENV="${{ github.event.client_payload.environment || 'staging' }}"
+          VER="${{ github.event.client_payload.version || 'latest' }}"
+          echo "🚀 Deploying version ${VER} to ${ENV}..."
+          echo "✅ Deploy triggered by external system"
+
+      - name: Handle run-tests
+        if: github.event.action == 'run-tests' || inputs.simulate-event-type == 'run-tests'
+        run: |
+          echo "🧪 Running tests as requested by external system..."
+          npm ci --silent
+          npm test
+
+      - name: Summary
+        run: |
+          echo "## 📡 Repository Dispatch Received" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Event type:** \`${{ github.event.action || inputs.simulate-event-type }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Payload:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`json" >> $GITHUB_STEP_SUMMARY
+          echo '{' >> $GITHUB_STEP_SUMMARY
+          echo '  "environment": "${{ github.event.client_payload.environment || 'N/A' }}",' >> $GITHUB_STEP_SUMMARY
+          echo '  "version": "${{ github.event.client_payload.version || 'N/A' }}",' >> $GITHUB_STEP_SUMMARY
+          echo '  "triggered_by": "${{ github.event.client_payload.triggered_by || 'manual' }}"' >> $GITHUB_STEP_SUMMARY
+          echo '}' >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
