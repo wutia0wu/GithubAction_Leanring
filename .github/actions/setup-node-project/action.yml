@@ -1,0 +1,39 @@
+# ============================================================
+# Composite Action — 封装重复的 Node.js 项目初始化步骤
+# ============================================================
+# 调用方式：uses: ./.github/actions/setup-node-project
+# ============================================================
+
+name: "Setup Node.js Project"
+description: "Checkout, setup Node.js with cache, and install dependencies"
+
+# ── 输入参数 ──────────────────────────────────────────────
+inputs:
+  node-version:
+    description: "Node.js version"
+    required: false
+    default: "20"
+
+# ── 输出 ──────────────────────────────────────────────────
+outputs:
+  cache-hit:
+    description: "Whether npm cache was hit"
+    value: ${{ steps.setup.outputs.cache-hit }}
+
+# ── 关键：声明为 composite ─────────────────────────────────
+runs:
+  using: "composite"   # ← 这里声明类型，区别于 JavaScript Action / Docker Action
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js ${{ inputs.node-version }}
+      id: setup
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: "npm"
+
+    - name: Install dependencies
+      run: npm ci
+      shell: bash   # ← composite action 的 run step 必须显式声明 shell

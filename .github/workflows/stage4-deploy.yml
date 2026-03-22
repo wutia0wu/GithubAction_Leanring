@@ -26,7 +26,7 @@ concurrency:
 # 默认关闭所有权限，按需开启
 # 防止 workflow 被注入恶意代码后拥有过高权限
 permissions:
-  contents: read   # 只需要读代码，不需要写
+  contents: read # 只需要读代码，不需要写
 
 jobs:
   # ── Job 1: 代码检查（PR 和 push 都跑）────────────────────
@@ -34,12 +34,7 @@ jobs:
     name: "Lint"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-      - run: npm ci
+      - uses: ./.github/actions/setup-node-project   # ← Composite Action 封装了 checkout + setup + npm ci
       - run: npm run lint
 
   # ── Job 2: 测试（PR 和 push 都跑）────────────────────────
@@ -47,12 +42,7 @@ jobs:
     name: "Test"
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-      - run: npm ci
+      - uses: ./.github/actions/setup-node-project   # ← 同一个 Action 直接复用
       - run: npm run test:coverage
       - uses: actions/upload-artifact@v4
         with:
@@ -101,7 +91,7 @@ jobs:
     name: "Deploy → Production"
     runs-on: ubuntu-latest
     needs: deploy-staging
-    environment: production   # Required reviewers 在此生效
+    environment: production # Required reviewers 在此生效
 
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 

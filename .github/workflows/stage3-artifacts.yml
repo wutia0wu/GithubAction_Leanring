@@ -29,6 +29,7 @@ jobs:
     outputs:
       # 通过 $GITHUB_OUTPUT 将覆盖率摘要传给下一个 Job
       coverage-summary: ${{ steps.coverage.outputs.summary }}
+      #  [自定义 Job 输出名] : ${{ steps.[Step ID].outputs.[Step 内定义的变量名] }}
 
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +37,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"   # ← 关键！内置 npm 缓存，key 自动用 package-lock.json hash
+          cache: "npm" # ← 关键！内置 npm 缓存，key 自动用 package-lock.json hash
 
       # cache: 'npm' 等价于手动配置以下步骤（此处注释展示原理）:
       # - uses: actions/cache@v4
